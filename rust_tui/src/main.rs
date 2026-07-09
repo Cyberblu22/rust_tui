@@ -1,8 +1,10 @@
+use std::fs;
 use std::path::{self, PathBuf};
-struct AppState{
-    current_dir: std::path::PathBuf, //Dir = Directory
-    dir_files: Vec<FileItem>,
-    cursor : usize
+use std::env::{self, current_dir};
+pub struct AppState{
+    pub dir_path: std::path::PathBuf, //Dir = Directory
+    pub dir_files: Vec<FileItem>,
+    pub cursor : usize
 }
 
 struct FileItem{
@@ -13,7 +15,20 @@ struct FileItem{
 }
 
 impl AppState{
+    pub fn new_state() -> Self{
+        AppState{
+            dir_path: std::env::current_dir().unwrap(),
+            dir_files: Vec::new(),
+            cursor: 0
+        }
+    }
 
+    pub fn scan_current_dir(&mut self){
+        std::fs::read_dir(&self.dir_path);
+        for entry in std::fs::DirEntry.unwrap(){
+
+        }
+    }
 }
 
 
