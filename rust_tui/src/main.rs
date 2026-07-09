@@ -1,4 +1,4 @@
-use std::fs;
+use std::fs::{self, DirEntry,Metadata};
 use std::path::{self, PathBuf};
 use std::env::{self, current_dir};
 pub struct AppState{
@@ -24,9 +24,16 @@ impl AppState{
     }
 
     pub fn scan_current_dir(&mut self){
-        std::fs::read_dir(&self.dir_path);
-        for entry in std::fs::DirEntry.unwrap(){
+        for entry in std::fs::read_dir(&self.dir_path).unwrap(){
+            let dir: DirEntry = entry.unwrap();
+            let meta: Metadata = dir.metadata().unwrap();
 
+            let file_info: FileItem= FileItem { 
+                name: dir.file_name().into_string().unwrap(), 
+                path: dir.path(), 
+                is_dir: meta.is_dir(),
+                size: meta.len() };
+            &self.dir_files.push(file_info);
         }
     }
 }
