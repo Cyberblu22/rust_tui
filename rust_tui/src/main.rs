@@ -1,6 +1,7 @@
 use std::fs::{self, DirEntry,Metadata};
 use std::path::{self, PathBuf};
 use std::env::{self, current_dir};
+use crossterm::event::{Event,KeyCode};
 pub struct AppState{
     pub dir_path: std::path::PathBuf, //Dir = Directory
     pub dir_files: Vec<FileItem>,
@@ -40,5 +41,35 @@ impl AppState{
 
 
 fn main() {
-    println!("Hello, world!");
+    let mut app = AppState::new_state();
+    app.scan_current_dir();
+
+    loop{
+        let event = crossterm::event::read().unwrap();
+
+        match event{
+
+            Event::Key(key_event) =>{
+
+                match key_event.code{  
+                    KeyCode::Char('q') => {
+                        break;
+                    } KeyCode::Up => {
+                        if app.cursor > 0{
+                           app.cursor -= 1; 
+                        } 
+                    } KeyCode::Down => {
+                        if !app.dir_files.is_empty() && app.cursor < app.dir_files.len() - 1{
+                            app.cursor += 1;
+                        }
+                    } _ => {}
+
+                }
+
+            } _ => {
+
+            }
+        }
+        
+    }
 }
