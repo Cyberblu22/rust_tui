@@ -50,6 +50,8 @@ fn ui(f: &mut ratatui::Frame, app: &AppState) {
     f.render_widget(list, f.area());
 }
 
+//finally got this working 
+
 fn main() {
     let mut app = AppState::new_state();
     app.scan_current_dir();
