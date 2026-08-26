@@ -2,6 +2,7 @@ use std::fs::{self, DirEntry,Metadata};
 use std::path::{self, PathBuf};
 use std::env::{self, current_dir};
 use crossterm::event::{Event,KeyCode};
+use ratatui::widgets::{List, ListItem};
 pub struct AppState{
     pub dir_path: std::path::PathBuf, //Dir = Directory
     pub dir_files: Vec<FileItem>,
@@ -34,17 +35,35 @@ impl AppState{
                 path: dir.path(), 
                 is_dir: meta.is_dir(),
                 size: meta.len() };
-            &self.dir_files.push(file_info);
+            self.dir_files.push(file_info);
         }
     }
 }
 
+fn ui(f: &mut ratatui::Frame, app: &AppState) {
+    let items: Vec<_> = app.dir_files.iter().map(  
+        | FileItem { name, path, is_dir, size } | 
+        ListItem::new(name.clone())
+    ).collect();
+    let list = ratatui::widgets::List::new(items);
+    
+    f.render_widget(list, f.area());
+}
 
 fn main() {
     let mut app = AppState::new_state();
     app.scan_current_dir();
 
+    crossterm::terminal::enable_raw_mode().unwrap();
+    crossterm::execute!(std::io::stdout(), crossterm::terminal::EnterAlternateScreen).unwrap();
+
+    let mut terminal = ratatui::Terminal::new(ratatui::backend::CrosstermBackend::new(std::io::stdout())).unwrap();
+
     loop{
+        terminal.draw(|f| {
+            ui(f, &app);
+        }).unwrap();
+
         let event = crossterm::event::read().unwrap();
 
         match event{
@@ -72,4 +91,8 @@ fn main() {
         }
         
     }
+
+    crossterm::terminal::disable_raw_mode().unwrap();
+    crossterm::execute!(std::io::stdout(), crossterm::terminal::LeaveAlternateScreen).unwrap();
+
 }
