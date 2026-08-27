@@ -1,8 +1,8 @@
 use std::fs::{self, DirEntry,Metadata};
-use std::path::{self, PathBuf};
+use std::path::{self, Ancestors, Path, PathBuf};
 use std::env::{self, current_dir};
 use crossterm::event::{Event,KeyCode};
-use ratatui::widgets::{List, ListItem};
+use ratatui::widgets::{List, ListItem, ListState};
 pub struct AppState{
     pub dir_path: std::path::PathBuf, //Dir = Directory
     pub dir_files: Vec<FileItem>,
@@ -26,6 +26,9 @@ impl AppState{
     }
 
     pub fn scan_current_dir(&mut self){
+
+        self.dir_files.clear();
+
         for entry in std::fs::read_dir(&self.dir_path).unwrap(){
             let dir: DirEntry = entry.unwrap();
             let meta: Metadata = dir.metadata().unwrap();
@@ -45,12 +48,13 @@ fn ui(f: &mut ratatui::Frame, app: &AppState) {
         | FileItem { name, path, is_dir, size } | 
         ListItem::new(name.clone())
     ).collect();
-    let list = ratatui::widgets::List::new(items);
-    
-    f.render_widget(list, f.area());
+    let list = ratatui::widgets::List::new(items).highlight_symbol(">> ");
+    let mut state = ratatui::widgets::ListState::default();
+    state.select(Some(app.cursor));
+
+    f.render_stateful_widget(list, f.area(), &mut state);
 }
 
-//finally got this working 
 
 fn main() {
     let mut app = AppState::new_state();
@@ -83,6 +87,20 @@ fn main() {
                         if !app.dir_files.is_empty() && app.cursor < app.dir_files.len() - 1{
                             app.cursor += 1;
                         }
+                    } KeyCode::Enter => {
+                        if app.dir_files[app.cursor].is_dir {
+                            app.dir_path = app.dir_files[app.cursor].path.clone();
+                            app.scan_current_dir(); // Reset the file 
+                            app.cursor = 0; 
+                        }
+                    } KeyCode::Backspace => {
+
+                        if let Some(parent_folder) = app.dir_path.parent(){
+                            app.dir_path = (&parent_folder).to_path_buf();
+                            app.scan_current_dir();
+                            app.cursor = 0; 
+                        }
+
                     } _ => {}
 
                 }
