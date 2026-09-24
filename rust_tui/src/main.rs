@@ -2,11 +2,15 @@ use std::fs::{self, DirEntry,Metadata};
 use std::path::{self, Ancestors, Path, PathBuf};
 use std::env::{self, current_dir};
 use crossterm::event::{Event,KeyCode};
-use ratatui::widgets::{List, ListItem, ListState};
+use ratatui::widgets::{Block, List, ListItem, ListState, Paragraph};
+use::ratatui::layout::{Constraint, Layout};
+
 pub struct AppState{
-    pub dir_path: std::path::PathBuf, //Dir = Directory
+    //Dir = Directory
+    pub dir_path: std::path::PathBuf, 
     pub dir_files: Vec<FileItem>,
-    pub cursor : usize
+    pub cursor : usize,
+    pub preview_text : Option<String>
 }
 
 struct FileItem{
@@ -21,14 +25,17 @@ impl AppState{
         AppState{
             dir_path: std::env::current_dir().unwrap(),
             dir_files: Vec::new(),
-            cursor: 0
+            cursor: 0, 
+            preview_text : None
         }
     }
 
     pub fn scan_current_dir(&mut self){
 
+        // Basically everytime we render a new page of the directory were in we need to clear the old one then load the new one
         self.dir_files.clear();
 
+        // This is just gathering the content 
         for entry in std::fs::read_dir(&self.dir_path).unwrap(){
             let dir: DirEntry = entry.unwrap();
             let meta: Metadata = dir.metadata().unwrap();
@@ -44,15 +51,29 @@ impl AppState{
 }
 
 fn ui(f: &mut ratatui::Frame, app: &AppState) {
+
     let items: Vec<_> = app.dir_files.iter().map(  
         | FileItem { name, path, is_dir, size } | 
         ListItem::new(name.clone())
     ).collect();
+
     let list = ratatui::widgets::List::new(items).highlight_symbol(">> ");
     let mut state = ratatui::widgets::ListState::default();
+
+    let horizontal = Layout::horizontal([Constraint::Percentage(30), Constraint::Percentage(70)]);
+    let [list_area, preview_area] = horizontal.areas(f.area());
+
+    let text_to_display = if let Some(content) = &app.preview_text {
+        content
+    } else {
+        "Press Enter to preview a file"
+    };
+
+    let paragraph = Paragraph::new(text_to_display).block(Block::bordered().title("Preview"));
     state.select(Some(app.cursor));
 
-    f.render_stateful_widget(list, f.area(), &mut state);
+    f.render_stateful_widget(list, list_area, &mut state);
+    f.render_widget(paragraph, preview_area);
 }
 
 
@@ -92,9 +113,10 @@ fn main() {
                             app.dir_path = app.dir_files[app.cursor].path.clone();
                             app.scan_current_dir(); // Reset the file 
                             app.cursor = 0; 
+                        } else {
+                            
                         }
                     } KeyCode::Backspace => {
-
                         if let Some(parent_folder) = app.dir_path.parent(){
                             app.dir_path = (&parent_folder).to_path_buf();
                             app.scan_current_dir();
