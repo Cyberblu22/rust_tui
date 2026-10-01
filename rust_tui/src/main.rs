@@ -114,7 +114,9 @@ fn main() {
                             app.scan_current_dir(); // Reset the file 
                             app.cursor = 0; 
                         } else {
-                            
+                            if let Ok(contents) = fs::read_to_string(app.dir_files[app.cursor].path.clone()){
+                                app.preview_text = Some(contents);
+                            }
                         }
                     } KeyCode::Backspace => {
                         if let Some(parent_folder) = app.dir_path.parent(){
