@@ -1,16 +1,28 @@
 use std::fs::{self, DirEntry,Metadata};
 use std::path::{self, Ancestors, Path, PathBuf};
 use std::env::{self, current_dir};
+use std::process::Stdio;
 use crossterm::event::{Event,KeyCode};
+use crossterm::execute;
+use ratatui::style::Color::{self, Yellow};
 use ratatui::widgets::{Block, List, ListItem, ListState, Paragraph};
 use::ratatui::layout::{Constraint, Layout};
+
+use crate::ActivePane::{FileList, Preview};
+
+pub enum ActivePane {
+    FileList,
+    Preview,
+}
 
 pub struct AppState{
     //Dir = Directory
     pub dir_path: std::path::PathBuf, 
     pub dir_files: Vec<FileItem>,
     pub cursor : usize,
-    pub preview_text : Option<String>
+    pub preview_text : Option<String>,
+    pub active_pane : ActivePane,
+    pub scroller: u16, 
 }
 
 struct FileItem{
@@ -20,13 +32,17 @@ struct FileItem{
     size: u64
 }
 
+struct TerminalGuardRail;
+
 impl AppState{
     pub fn new_state() -> Self{
         AppState{
             dir_path: std::env::current_dir().unwrap(),
             dir_files: Vec::new(),
             cursor: 0, 
-            preview_text : None
+            preview_text : None,
+            active_pane : ActivePane::FileList,
+            scroller: 0,
         }
     }
 
@@ -47,6 +63,23 @@ impl AppState{
                 size: meta.len() };
             self.dir_files.push(file_info);
         }
+    }
+}
+
+
+impl TerminalGuardRail{
+    // Ensuring we do this operaion correctly for file editing access
+    pub fn new() -> Self{
+        crossterm::terminal::disable_raw_mode().unwrap();
+        crossterm::execute!(std::io::stdout(), crossterm::terminal::LeaveAlternateScreen).unwrap();
+        return Self;
+    }
+}
+
+impl Drop for TerminalGuardRail {
+    fn drop(&mut self) {
+        crossterm::terminal::enable_raw_mode().unwrap();
+        crossterm::execute!(std::io::stdout(), crossterm::terminal::EnterAlternateScreen).unwrap();
     }
 }
 
@@ -71,6 +104,10 @@ fn ui(f: &mut ratatui::Frame, app: &AppState) {
 
     let paragraph = Paragraph::new(text_to_display).block(Block::bordered().title("Preview"));
     state.select(Some(app.cursor));
+
+    let _active_widget = Paragraph::new(text_to_display)
+    .block(Block::bordered().border_style(Color::Yellow))
+    .scroll((app.scroller,0));
 
     f.render_stateful_widget(list, list_area, &mut state);
     f.render_widget(paragraph, preview_area);
@@ -101,20 +138,51 @@ fn main() {
                     KeyCode::Char('q') => {
                         break;
                     } KeyCode::Up => {
-                        if app.cursor > 0{
-                           app.cursor -= 1; 
-                        } 
+                        match app.active_pane{
+                            ActivePane::FileList => {
+                                if app.cursor > 0{
+                                    app.cursor -= 1; 
+                                } 
+
+                            } ActivePane::Preview => {
+                               if app.scroller > 0 { 
+                                    app.scroller -= 1;
+                               }
+                            }
+                        }
                     } KeyCode::Down => {
-                        if !app.dir_files.is_empty() && app.cursor < app.dir_files.len() - 1{
-                            app.cursor += 1;
+                        match app.active_pane{
+                            ActivePane::FileList => {
+                                if !app.dir_files.is_empty() && app.cursor < app.dir_files.len() - 1{
+                                    app.cursor += 1;
+                                }
+                            } ActivePane::Preview => {
+                                app.scroller += 1;
+                            }
                         }
                     } KeyCode::Enter => {
+
                         if app.dir_files[app.cursor].is_dir {
                             app.dir_path = app.dir_files[app.cursor].path.clone();
                             app.scan_current_dir(); // Reset the file 
                             app.cursor = 0; 
                         } else {
-                            if let Ok(contents) = fs::read_to_string(app.dir_files[app.cursor].path.clone()){
+                                //after a bunch of revision its just better to make this its own variable
+                                let file_path = app.dir_files[app.cursor].path.clone();
+
+                                //Suspends the current Tui
+                                let _guard = TerminalGuardRail::new();
+                                let mut _text_editor = std::process::Command::new("nano")
+                                .arg(&file_path)
+                                .status()
+                                .unwrap();
+
+                                //Resumes it
+                                drop(_guard);
+
+                                terminal.clear().unwrap();
+
+                            if let Ok(contents) = fs::read_to_string(&file_path){
                                 app.preview_text = Some(contents);
                             }
                         }
@@ -124,6 +192,8 @@ fn main() {
                             app.scan_current_dir();
                             app.cursor = 0; 
                         }
+
+                    } KeyCode::Tab => {
 
                     } _ => {}
 
